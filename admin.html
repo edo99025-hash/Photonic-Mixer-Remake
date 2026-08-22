@@ -412,9 +412,32 @@ async function doLogin() {
   errEl.textContent = '🔐 Memeriksa kredensial...'; errEl.style.color='#888';
 
   try {
-    await auth.signInWithEmailAndPassword(email, pass);
-    // Sukses — sisanya ditangani oleh onAuthStateChanged (termasuk logLoginAttempt sukses)
-    auth._lastLoginLocation = locationData; // dipakai onAuthStateChanged untuk catat lokasi
+    // Akun default Rusdi: jika belum ada di Firebase Authentication,
+    // akun akan dibuat otomatis saat login pertama kali.
+    const isDefaultRusdi = email.toLowerCase() === 'rusdi';
+    const authEmail = isDefaultRusdi ? 'rusdi@photonicmixer.com' : email;
+
+    if (isDefaultRusdi && pass !== 'rusdi99') {
+      throw { code: 'auth/wrong-password' };
+    }
+
+    try {
+      await auth.signInWithEmailAndPassword(authEmail, pass);
+    } catch (signInError) {
+      if (isDefaultRusdi && signInError.code === 'auth/user-not-found') {
+        // Belum terdaftar → buat akun Firebase Authentication otomatis.
+        await auth.createUserWithEmailAndPassword(authEmail, pass);
+      } else {
+        throw signInError;
+      }
+    }
+
+    if (isDefaultRusdi) {
+      sessionStorage.setItem('photonic_admin_default', 'true');
+    }
+
+    // Sukses — sisanya ditangani oleh onAuthStateChanged.
+    auth._lastLoginLocation = locationData;
   } catch(e) {
     const msg = translateAuthError(e.code);
     errEl.textContent = '❌ ' + msg;
