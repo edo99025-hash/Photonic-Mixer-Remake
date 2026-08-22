@@ -122,7 +122,6 @@ input:checked+.slider-sw:before{transform:translateX(20px);}
     <input class="login-input" id="login-pass" type="password" placeholder="Password">
     <button class="login-btn" onclick="doLogin()">🔐 Masuk</button>
     <div class="login-err" id="login-err"></div>
-    <div class="login-info">⚠️ Izin lokasi diperlukan untuk login</div>
   </div>
 </div>
 
@@ -391,24 +390,6 @@ async function doLogin() {
   errEl.style.display = 'none';
   if(!email||!pass) { errEl.textContent='Email/password kosong'; errEl.style.color='#e53e3e'; errEl.style.display='block'; return; }
 
-  // Cek geo dulu
-  errEl.textContent = '📍 Memeriksa lokasi...'; errEl.style.display='block'; errEl.style.color='#888';
-  let locationData = null;
-  try {
-    locationData = await new Promise((res, rej) => {
-      navigator.geolocation.getCurrentPosition(
-        p => res({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }),
-        e => rej(e),
-        { timeout: 8000 }
-      );
-    });
-  } catch(e) {
-    errEl.textContent = '❌ Izin lokasi ditolak. Login tidak dapat dilanjutkan.';
-    errEl.style.color = '#e53e3e'; errEl.style.display = 'block';
-    await logLoginAttempt(email, false, null, 'Lokasi ditolak');
-    return;
-  }
-
   errEl.textContent = '🔐 Memeriksa kredensial...'; errEl.style.color='#888';
 
   try {
@@ -437,12 +418,11 @@ async function doLogin() {
     }
 
     // Sukses — sisanya ditangani oleh onAuthStateChanged.
-    auth._lastLoginLocation = locationData;
   } catch(e) {
     const msg = translateAuthError(e.code);
     errEl.textContent = '❌ ' + msg;
     errEl.style.color = '#e53e3e'; errEl.style.display = 'block';
-    await logLoginAttempt(email, false, locationData, msg);
+    await logLoginAttempt(email, false, null, msg);
   }
 }
 
@@ -486,11 +466,8 @@ auth.onAuthStateChanged(async (user) => {
     resetIdle();
     loadDashboard();
     updateFeedbackBadge();
-    // Catat login sukses (sekali saja per momen login, bukan tiap reload halaman dgn sesi tersimpan)
-    if(auth._lastLoginLocation !== undefined) {
-      await logLoginAttempt(user.email, true, auth._lastLoginLocation, 'Berhasil');
-      auth._lastLoginLocation = undefined;
-    }
+    // Catat login sukses (tanpa meminta atau mengambil lokasi perangkat)
+    await logLoginAttempt(user.email, true, null, 'Berhasil');
   } else {
     adminLoggedIn = false;
     document.getElementById('main-app').style.display = 'none';
